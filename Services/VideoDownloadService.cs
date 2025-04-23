@@ -172,12 +172,22 @@ public class VideoDownloadService
 
             if (!task.Url.EndsWith(".m3u8",StringComparison.OrdinalIgnoreCase))
             {
-                using var steam = await _httpClientFactory.CreateClient().GetStreamAsync(task.Url);
-              
-                 // 创建文件流
-                using var streamToWriteTo = System.IO.File.Open(tempm3u8Path, FileMode.Create);
-                await steam.CopyToAsync(streamToWriteTo);
-                task.Url = tempm3u8Path;
+                try
+                {
+                    using var response = await _httpClientFactory.CreateClient().GetAsync(task.Url);
+                    response.EnsureSuccessStatusCode();
+                    using var stream = await response.Content.ReadAsStreamAsync();
+                  
+                     // 创建文件流
+                    using var streamToWriteTo = System.IO.File.Open(tempm3u8Path, FileMode.Create);
+                    await stream.CopyToAsync(streamToWriteTo);
+                    task.Url = tempm3u8Path;
+                }
+                catch (System.Exception)
+                {
+                    Directory.Delete(outputDir, true);
+                    throw;
+                }
             }
 
 
