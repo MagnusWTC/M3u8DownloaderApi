@@ -7,15 +7,19 @@ namespace M3u8DownloaderApi.Services;
 public class VideoDownloadService
 {
     private readonly ILogger<VideoDownloadService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _downloadPath;
     private readonly Dictionary<string, DownloadTask> _tasks = new();
     private readonly string _m3u8dlPath;
     private readonly string _ffmpegPath;
     private readonly bool _isDocker;
 
-    public VideoDownloadService(ILogger<VideoDownloadService> logger, IConfiguration configuration)
+    
+
+    public VideoDownloadService(ILogger<VideoDownloadService> logger, IConfiguration configuration, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
         _isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
         
         if (_isDocker)
@@ -31,7 +35,9 @@ public class VideoDownloadService
             _ffmpegPath = configuration["FFmpegPath"] ?? "ffmpeg";
         }
 
+       
         Directory.CreateDirectory(_downloadPath);
+      
 
         if (!File.Exists(_m3u8dlPath))
         {
@@ -156,11 +162,24 @@ public class VideoDownloadService
             throw new ArgumentException("Task not found", nameof(taskId));
         }
 
+       
         try
         {
             task.Status = "Downloading";
             var outputDir = Path.Combine(_downloadPath, task.Id);
             Directory.CreateDirectory(outputDir);
+            var tempm3u8Path = Path.Combine(outputDir,$"{Guid.NewGuid()}.m3u8");
+
+            if (!task.Url.EndsWith(".m3u8",StringComparison.OrdinalIgnoreCase))
+            {
+                using var steam = await _httpClientFactory.CreateClient().GetStreamAsync(task.Url);
+              
+                 // 创建文件流
+                using var streamToWriteTo = System.IO.File.Open(tempm3u8Path, FileMode.Create);
+                await steam.CopyToAsync(streamToWriteTo);
+                task.Url = tempm3u8Path;
+            }
+
 
             // 构建 N_m3u8DL-RE 命令行参数
             var startInfo = new ProcessStartInfo
