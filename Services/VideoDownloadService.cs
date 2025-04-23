@@ -185,7 +185,7 @@ public class VideoDownloadService
             var startInfo = new ProcessStartInfo
             {
                 FileName = _m3u8dlPath,
-                Arguments = $"\"{task.Url}\" --save-dir \"{outputDir}\" --save-name \"raw_video\" --binary-merge --auto-select  --ffmpeg-binary-path \"{_ffmpegPath}\"",
+                Arguments = $"\"{task.Url}\" --save-dir \"{outputDir}\" --download-retry-count 10 --save-name \"raw_video\" --binary-merge --auto-select  --ffmpeg-binary-path \"{_ffmpegPath}\"",
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
@@ -251,7 +251,7 @@ public class VideoDownloadService
                 process.BeginErrorReadLine();
 
                 // 设置超时时间为3hr
-                using var cts = new CancellationTokenSource(TimeSpan.FromHours(3));
+                using var cts = new CancellationTokenSource(TimeSpan.FromHours(10));
                 try
                 {
                     await process.WaitForExitAsync(cts.Token);
@@ -272,7 +272,7 @@ public class VideoDownloadService
                     {
                         _logger.LogError(ex, "Error while killing process");
                     }
-                    throw new TimeoutException("Download timed out after 3 hr");
+                    throw new TimeoutException("Download timed out after 10 hr");
                 }
 
                 if (process.ExitCode != 0)
@@ -280,6 +280,7 @@ public class VideoDownloadService
                     var errorMessage = errorBuilder.ToString();
                     _logger.LogError("N_m3u8DL-RE failed with exit code {ExitCode}. Error: {Error}", 
                         process.ExitCode, errorMessage);
+                    Directory.Delete(outputDir, true);
                     throw new Exception($"Download failed with exit code {process.ExitCode}: {errorMessage}");
                 }
 
