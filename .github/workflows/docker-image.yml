@@ -15,4 +15,4 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag m3u8Download:$(date +%s)
+      run: docker build . --file Dockerfile --tag m3u8download:$(date +%s)
