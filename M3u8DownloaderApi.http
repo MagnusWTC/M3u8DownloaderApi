@@ -1,0 +1,6 @@
+@M3u8DownloaderApi_HostAddress = http://localhost:5015
+
+GET {{M3u8DownloaderApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
