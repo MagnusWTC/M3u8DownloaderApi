@@ -59,6 +59,30 @@
     </div>
 
     <script>
+        // 添加状态枚举映射
+        const DownloadStatus = {
+            0: 'Pending',
+            1: 'Downloading',
+            2: 'Converting',
+            3: 'Completed',
+            4: 'Failed'
+        };
+
+        // 状态对应的中文显示
+        const StatusText = {
+            'Pending': '等待中',
+            'Downloading': '下载中',
+            'Converting': '转换中',
+            'Completed': '已完成',
+            'Failed': '失败'
+        };
+
+        function getStatusText(status) {
+            // 如果 status 是数字，先转换为英文状态
+            const statusKey = typeof status === 'number' ? DownloadStatus[status] : status;
+            return StatusText[statusKey] || statusKey;
+        }
+
         const tasks = new Map();
 
         // 添加清空任务的事件监听器
@@ -125,21 +149,85 @@
             const taskElement = document.createElement('div');
             taskElement.className = 'task-item';
             taskElement.id = `task-${task.id}`;
+            updateTaskElement(taskElement, task);
+            document.getElementById('taskList').prepend(taskElement);
+            startPolling(task.id);
+        }
+
+        function updateTaskElement(taskElement, task) {
+            // 获取状态文本
+            const statusText = getStatusText(task.status);
+            
+            let statusHtml = `<span class="status">${statusText}</span>`;
+            // 修改判断条件，同时支持数字和字符串形式的状态
+            if (task.status === 4 || task.status === 'Failed' || statusText === 'Failed') {
+                statusHtml += `
+                    <button class="btn btn-sm btn-warning ms-2 retry-btn" 
+                            onclick="retryDownload('${task.id}')">
+                        重试
+                    </button>`;
+            }
+
             taskElement.innerHTML = `
                 <div>
                     <strong>文件名:</strong> ${task.outputFileName}
                     <br>
-                    <strong>状态:</strong> <span class="status">${task.status}</span>
+                    <strong>状态:</strong> ${statusHtml}
                 </div>
                 <div class="progress mt-2">
                     <div class="progress-bar" role="progressbar" style="width: ${task.progress}%">
                         ${task.progress}%
                     </div>
                 </div>
+                ${(task.status === 4 || task.status === 'Failed' || statusText === 'Failed') && task.errorMessage ? 
+                    `<div class="text-danger mt-2">错误: ${task.errorMessage || '未知错误'}</div>` : ''}
             `;
 
-            document.getElementById('taskList').prepend(taskElement);
-            startPolling(task.id);
+            const progressBar = taskElement.querySelector('.progress-bar');
+            if (task.status === 4 || task.status === 'Failed' || statusText === 'Failed') {
+                progressBar.classList.add('bg-danger');
+            } else if (task.status === 3 || task.status === 'Completed' || statusText === 'Completed') {
+                progressBar.classList.add('bg-success');
+            } else {
+                progressBar.classList.remove('bg-danger', 'bg-success');
+            }
+        }
+
+        function updateTaskStatus(task) {
+            const taskElement = document.getElementById(`task-${task.id}`);
+            if (!taskElement) return;
+
+            updateTaskElement(taskElement, task);
+        }
+
+        async function retryDownload(taskId) {
+            try {
+                const response = await fetch(`/api/video/${taskId}/retry`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error('重试请求失败');
+                }
+
+                const task = await response.json();
+                
+                // 更新任务状态
+                const taskElement = document.getElementById(`task-${taskId}`);
+                if (taskElement) {
+                    // 重置进度条样式
+                    const progressBar = taskElement.querySelector('.progress-bar');
+                    progressBar.classList.remove('bg-danger', 'bg-success');
+                    
+                    // 更新任务显示
+                    updateTaskElement(taskElement, task);
+                    
+                    // 重新开始轮询
+                    startPolling(taskId);
+                }
+            } catch (error) {
+                alert('重试失败：' + error.message);
+            }
         }
 
         function startPolling(taskId) {
@@ -162,25 +250,6 @@
             }, 1000);
 
             tasks.set(taskId, interval);
-        }
-
-        function updateTaskStatus(task) {
-            const taskElement = document.getElementById(`task-${task.id}`);
-            if (!taskElement) return;
-
-            const statusElement = taskElement.querySelector('.status');
-            const progressBar = taskElement.querySelector('.progress-bar');
-
-            statusElement.textContent = task.status;
-            progressBar.style.width = `${task.progress}%`;
-            progressBar.textContent = `${task.progress}%`;
-
-            if (task.status === 'Failed') {
-                progressBar.classList.add('bg-danger');
-                taskElement.innerHTML += `<div class="text-danger mt-2">错误: ${task.errorMessage}</div>`;
-            } else if (task.status === 'Completed') {
-                progressBar.classList.add('bg-success');
-            }
         }
 
         // 页面加载时获取所有任务

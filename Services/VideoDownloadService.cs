@@ -70,7 +70,7 @@ public class VideoDownloadService
     private async Task ConvertToMp4Async(string inputPath, string outputPath, DownloadTask task)
     {
         _logger.LogInformation("Starting FFmpeg conversion from {Input} to {Output}", inputPath, outputPath);
-        task.Status = "Converting";
+        task.Status = DownloadStatus.Converting;
 
         var startInfo = new ProcessStartInfo
         {
@@ -165,7 +165,7 @@ public class VideoDownloadService
        
         try
         {
-            task.Status = "Downloading";
+            task.Status = DownloadStatus.Downloading;
             var outputDir = Path.Combine(_downloadPath, task.Id);
             Directory.CreateDirectory(outputDir);
             var tempm3u8Path = Path.Combine(outputDir,$"{Guid.NewGuid()}.m3u8");
@@ -333,13 +333,13 @@ public class VideoDownloadService
                     _logger.LogWarning(ex, "Failed to clean up temp folder: {Path}", outputDir);
                 }
 
-                task.Status = "Completed";
+                task.Status = DownloadStatus.Completed;
                 task.Progress = 100;
                 _logger.LogInformation("Task completed: {TaskId}", taskId);
             }
             catch (Exception ex)
             {
-                task.Status = "Failed";
+                task.Status = DownloadStatus.Failed;
                 task.ErrorMessage = ex.Message;
                 _logger.LogError(ex, "Error processing task {TaskId}", taskId);
                 throw;
@@ -347,7 +347,7 @@ public class VideoDownloadService
         }
         catch (Exception ex)
         {
-            task.Status = "Failed";
+            task.Status = DownloadStatus.Failed;
             task.ErrorMessage = ex.Message;
             _logger.LogError(ex, "Error processing task {TaskId}", taskId);
             throw;
@@ -369,5 +369,23 @@ public class VideoDownloadService
     {
         _tasks.Clear();
         _logger.LogInformation("All tasks have been cleared");
+    }
+
+    public DownloadTask ResetTask(string taskId)
+    {
+        var task = GetTask(taskId);
+        if (task == null)
+        {
+            throw new ArgumentException($"Task {taskId} not found");
+        }
+
+        // 重置任务状态
+        task.Status = DownloadStatus.Pending;
+        task.Progress = 0;
+        task.ErrorMessage = null;
+        task.CompletedTime = null;
+        task.StartTime = DateTime.UtcNow;
+
+        return task;
     }
 } 

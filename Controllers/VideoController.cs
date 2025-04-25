@@ -105,6 +105,45 @@ public class VideoController : ControllerBase
             return StatusCode(500, new { error = "Failed to clear tasks", details = ex.Message });
         }
     }
+
+    [HttpPost("{taskId}/retry")]
+    public async Task<ActionResult<DownloadTask>> RetryDownload(string taskId)
+    {
+        try
+        {
+            var task = _downloadService.GetTask(taskId);
+            if (task == null)
+            {
+                return NotFound(new { error = $"Task {taskId} not found" });
+            }
+
+            if (task.Status != DownloadStatus.Failed)
+            {
+                return BadRequest(new { error = "Only failed tasks can be retried" });
+            }
+
+            // 重置任务状态并重新开始下载
+            task = _downloadService.ResetTask(taskId);
+            
+            // 异步启动下载任务
+            _ = _downloadService.StartDownloadAsync(task.Id)
+                .ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                    {
+                        var exception = t.Exception?.InnerException ?? t.Exception;
+                        _logger.LogError(exception, "Retry download task {TaskId} failed", task.Id);
+                    }
+                }, TaskScheduler.Default);
+
+            return Ok(task);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrying download for task {TaskId}", taskId);
+            return StatusCode(500, new { error = "Failed to retry download", details = ex.Message });
+        }
+    }
 }
 
 public class DownloadRequest
