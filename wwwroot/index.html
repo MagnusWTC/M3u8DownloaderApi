@@ -33,20 +33,97 @@
         .task-item .progress {
             margin-top: 10px;
         }
+        .upload-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+        }
+        .upload-area:hover {
+            border-color: #0d6efd;
+            background-color: #f8f9fa;
+        }
+        .upload-area.dragover {
+            border-color: #0d6efd;
+            background-color: #e7f1ff;
+        }
+        .file-info {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .input-toggle {
+            display: flex;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .input-toggle-btn {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background-color: #f8f9fa;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .input-toggle-btn.active {
+            background-color: #0d6efd;
+            color: white;
+        }
+        .input-toggle-btn:not(.active):hover {
+            background-color: #e9ecef;
+        }
+        .input-section {
+            display: none;
+        }
+        .input-section.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h2 class="mb-4">M3U8 视频下载</h2>
+        
+        <div class="input-toggle">
+            <button type="button" class="input-toggle-btn active" data-type="url">URL链接</button>
+            <button type="button" class="input-toggle-btn" data-type="file">本地文件</button>
+        </div>
+        
         <form id="downloadForm">
-            <div class="mb-3">
-                <label for="url" class="form-label">M3U8 链接</label>
-                <input type="text" class="form-control" id="url" required>
+            <!-- URL输入部分 -->
+            <div id="urlInput" class="input-section active">
+                <div class="mb-3">
+                    <label for="url" class="form-label">M3U8 链接</label>
+                    <input type="text" class="form-control" id="url">
+                </div>
             </div>
+            
+            <!-- 文件上传部分 -->
+            <div id="fileInput" class="input-section">
+                <div class="mb-3">
+                    <label class="form-label">选择M3U8文件</label>
+                    <div class="upload-area" id="uploadArea">
+                        <div id="uploadText">
+                            <i class="fas fa-cloud-upload-alt mb-2" style="font-size: 2rem; color: #6c757d;"></i>
+                            <p>点击选择文件或拖拽文件到这里</p>
+                        </div>
+                        <input type="file" id="fileInputField" accept=".m3u8,.m3u" style="display: none;">
+                        <div id="fileInfo" class="file-info"></div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="mb-3">
                 <label for="outputFileName" class="form-label">输出文件名</label>
                 <input type="text" class="form-control" id="outputFileName" required>
             </div>
+            
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">开始下载</button>
                 <button type="button" class="btn btn-danger" id="clearTasks">清空任务列表</button>
@@ -84,67 +161,219 @@
         }
 
         const tasks = new Map();
+        let currentInputType = 'url'; // 当前输入类型：url 或 file
+        let selectedFile = null; // 选中的文件
 
-        // 添加清空任务的事件监听器
-        document.getElementById('clearTasks').addEventListener('click', async () => {
-            if (!confirm('确定要清空所有任务记录吗？')) {
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            // 输入类型切换
+            document.querySelectorAll('.input-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const type = this.getAttribute('data-type');
+                    switchInputType(type);
+                });
+            });
+
+            // 文件上传区域点击事件
+            document.getElementById('uploadArea').addEventListener('click', function() {
+                document.getElementById('fileInputField').click();
+            });
+
+            // 文件选择事件
+            document.getElementById('fileInputField').addEventListener('change', function(e) {
+                handleFileSelect(e.target.files);
+            });
+
+            // 拖放事件
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                handleFileSelect(e.dataTransfer.files);
+            });
+
+            // 清空任务的事件监听器
+            document.getElementById('clearTasks').addEventListener('click', async () => {
+                if (!confirm('确定要清空所有任务记录吗？')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/video/clear', {
+                        method: 'DELETE'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('清空任务失败');
+                    }
+
+                    // 清空前端显示
+                    document.getElementById('taskList').innerHTML = '';
+                    
+                    // 清除所有轮询
+                    tasks.forEach(interval => clearInterval(interval));
+                    tasks.clear();
+
+                    alert('任务列表已清空');
+                } catch (error) {
+                    alert('错误：' + error.message);
+                }
+            });
+
+            // 表单提交事件
+            document.getElementById('downloadForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const outputFileName = document.getElementById('outputFileName').value;
+                
+                if (currentInputType === 'url') {
+                    // URL下载
+                    const url = document.getElementById('url').value;
+                    if (!url) {
+                        alert('请输入M3U8链接');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/video/download', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                url,
+                                outputFileName
+                            })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('下载请求失败');
+                        }
+
+                        const task = await response.json();
+                        addTaskToList(task);
+                        document.getElementById('url').value = '';
+                        document.getElementById('outputFileName').value = '';
+
+                    } catch (error) {
+                        alert('错误：' + error.message);
+                    }
+                } else {
+                    // 文件上传
+                    if (!selectedFile) {
+                        alert('请选择M3U8文件');
+                        return;
+                    }
+                    
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', selectedFile);
+                        formData.append('outputFileName', outputFileName);
+
+                        const response = await fetch('/api/video/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('文件上传失败');
+                        }
+
+                        const task = await response.json();
+                        addTaskToList(task);
+                        resetFileInput();
+                        document.getElementById('outputFileName').value = '';
+
+                    } catch (error) {
+                        alert('错误：' + error.message);
+                    }
+                }
+            });
+
+            // 加载现有任务
+            loadTasks();
+        });
+
+        // 切换输入类型
+        function switchInputType(type) {
+            currentInputType = type;
+            
+            // 更新切换按钮状态
+            document.querySelectorAll('.input-toggle-btn').forEach(btn => {
+                if (btn.getAttribute('data-type') === type) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            // 显示对应的输入区域
+            document.getElementById('urlInput').classList.toggle('active', type === 'url');
+            document.getElementById('fileInput').classList.toggle('active', type === 'file');
+            
+            // 重置表单验证
+            if (type === 'url') {
+                document.getElementById('url').required = true;
+            } else {
+                document.getElementById('url').required = false;
+            }
+        }
+
+        // 处理文件选择
+        function handleFileSelect(files) {
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            
+            // 检查文件类型
+            if (!file.name.endsWith('.m3u8') && !file.name.endsWith('.m3u')) {
+                alert('请选择M3U8文件(.m3u8或.m3u)');
                 return;
             }
-
-            try {
-                const response = await fetch('/api/video/clear', {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) {
-                    throw new Error('清空任务失败');
-                }
-
-                // 清空前端显示
-                document.getElementById('taskList').innerHTML = '';
-                
-                // 清除所有轮询
-                tasks.forEach(interval => clearInterval(interval));
-                tasks.clear();
-
-                alert('任务列表已清空');
-            } catch (error) {
-                alert('错误：' + error.message);
-            }
-        });
-
-        document.getElementById('downloadForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
             
-            const url = document.getElementById('url').value;
-            const outputFileName = document.getElementById('outputFileName').value;
-
-            try {
-                const response = await fetch('/api/video/download', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        url,
-                        outputFileName
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error('下载请求失败');
-                }
-
-                const task = await response.json();
-                addTaskToList(task);
-                document.getElementById('url').value = '';
-                document.getElementById('outputFileName').value = '';
-
-            } catch (error) {
-                alert('错误：' + error.message);
+            selectedFile = file;
+            
+            // 更新UI显示文件信息
+            const fileInfo = document.getElementById('fileInfo');
+            fileInfo.innerHTML = `
+                <strong>已选择文件:</strong> ${file.name}<br>
+                <small>大小: ${formatFileSize(file.size)}</small>
+            `;
+            
+            // 如果没有填写输出文件名，使用文件名（去掉扩展名）
+            const outputFileNameInput = document.getElementById('outputFileName');
+            if (!outputFileNameInput.value) {
+                const fileName = file.name.replace(/\.m3u8?$/, '');
+                outputFileNameInput.value = fileName;
             }
-        });
+        }
 
+        // 重置文件输入
+        function resetFileInput() {
+            selectedFile = null;
+            document.getElementById('fileInputField').value = '';
+            document.getElementById('fileInfo').innerHTML = '';
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 以下为原有功能代码（稍作调整）
         function addTaskToList(task) {
             const taskElement = document.createElement('div');
             taskElement.className = 'task-item';
@@ -268,8 +497,6 @@
                 console.error('加载任务失败:', error);
             }
         }
-
-        loadTasks();
     </script>
 </body>
-</html> 
+</html>

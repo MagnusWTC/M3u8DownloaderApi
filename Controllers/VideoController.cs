@@ -17,6 +17,74 @@ public class VideoController : ControllerBase
         _logger = logger;
     }
 
+
+    [HttpPost("upload")]
+    public async Task<ActionResult<DownloadTask>> UploadM3U8File(IFormFile file, [FromForm] string outputFileName)
+    {
+        try
+        {
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new { error = "No file uploaded" });
+            }
+
+            // 验证文件类型
+            if (!file.FileName.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase) &&
+                !file.FileName.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { error = "Only .m3u8 and .m3u files are allowed" });
+            }
+
+            // 处理输出文件名
+            if (string.IsNullOrEmpty(outputFileName))
+            {
+                outputFileName = $"video_{DateTime.UtcNow:yyyyMMddHHmmss}.mp4";
+            }
+            else if (!outputFileName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+            {
+                outputFileName += ".mp4";
+            }
+
+            // 保存上传的文件到临时目录
+            var tempDir = Path.Combine(Path.GetTempPath(), "m3u8_uploads");
+            Directory.CreateDirectory(tempDir);
+            var tempFilePath = Path.Combine(tempDir, $"{Guid.NewGuid()}.m3u8");
+            
+            using (var stream = new FileStream(tempFilePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // 创建下载任务
+            var task = _downloadService.CreateDownloadTask(tempFilePath, outputFileName);
+            
+            // 异步启动下载任务
+                _ = _downloadService.StartDownloadAsync(task.Id)
+                    .ContinueWith(t =>
+                    {
+                        if (t.IsFaulted)
+                        {
+                            var exception = t.Exception?.InnerException ?? t.Exception;
+                            _logger.LogError(exception, "Download task {TaskId} failed", task.Id);
+                        }
+                    }, TaskScheduler.Default);
+
+                return Ok(task);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing uploaded M3U8 file");
+            return StatusCode(500, new { error = "Failed to process uploaded file", details = ex.Message });
+        }
+        finally
+        {
+                 var tempDir = Path.Combine(Path.GetTempPath(), "m3u8_uploads");
+                 Directory.Delete(tempDir,true);
+            
+        }
+    }
+
+
     [HttpPost("download")]
     public ActionResult<DownloadTask> StartDownload([FromBody] DownloadRequest request)
     {
