@@ -74,9 +74,6 @@ pids
 *.pid.lock
 
 # Project specific
-downloads/
-tools/
-ffmpeg/
 *.mp4
 *.ts
 *.m3u8
