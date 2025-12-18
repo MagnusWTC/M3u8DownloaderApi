@@ -76,12 +76,6 @@ public class VideoController : ControllerBase
             _logger.LogError(ex, "Error processing uploaded M3U8 file");
             return StatusCode(500, new { error = "Failed to process uploaded file", details = ex.Message });
         }
-        finally
-        {
-                 var tempDir = Path.Combine(Path.GetTempPath(), "m3u8_uploads");
-                 Directory.Delete(tempDir,true);
-            
-        }
     }
 
 

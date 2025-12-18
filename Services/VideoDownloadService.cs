@@ -327,6 +327,8 @@ public class VideoDownloadService
                 try
                 {
                     Directory.Delete(outputDir, true);
+                    var tempDir = Path.Combine(Path.GetTempPath(), "m3u8_uploads");
+                    Directory.Delete(tempDir,true);
                 }
                 catch (Exception ex)
                 {

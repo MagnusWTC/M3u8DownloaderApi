@@ -1,5 +1,4 @@
 # .NET Core build folders
-bin/
 obj/
 
 # Visual Studio files
@@ -28,7 +27,6 @@ x64/
 x86/
 build/
 bld/
-[Bb]in/
 [Oo]bj/
 [Oo]ut/
 msbuild.log
@@ -77,6 +75,7 @@ pids
 *.mp4
 *.ts
 *.m3u8
+*.tmp
 
 # OS generated files
 .DS_Store
@@ -87,3 +86,5 @@ pids
 ehthumbs.db
 Thumbs.db
 /Tools/N_m3u8DL-RE/N_m3u8DL-RE.exe
+Tools/raw_video/meta_selected.json
+Tools/raw_video/meta.json
