@@ -7,6 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Tools\N_m3u8DL-RE\**" />
+    <Compile Remove="Tools\test\**" />
+    <Content Remove="Tools\N_m3u8DL-RE\**" />
+    <Content Remove="Tools\test\**" />
+    <EmbeddedResource Remove="Tools\N_m3u8DL-RE\**" />
+    <EmbeddedResource Remove="Tools\test\**" />
+    <None Remove="Tools\N_m3u8DL-RE\**" />
+    <None Remove="Tools\test\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
   </ItemGroup>

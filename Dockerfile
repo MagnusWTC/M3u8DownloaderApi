@@ -31,6 +31,8 @@ RUN apt-get update && apt-get install -y wget && \
     rm n_m3u8dl.tar.gz && \
     chmod +x N_m3u8DL-RE
 
+RUN apk update && apk add --no-cache ca-certificates && update-ca-certificates
+
 # 设置环境变量
 ENV ASPNETCORE_URLS=http://+:80
 ENV FFmpegPath=/usr/bin/ffmpeg

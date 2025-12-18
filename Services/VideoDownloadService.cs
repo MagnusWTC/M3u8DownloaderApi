@@ -31,8 +31,8 @@ public class VideoDownloadService
         else
         {
             _downloadPath = configuration["DownloadPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "downloads");
-            _m3u8dlPath = configuration["M3u8DLPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "tools", "N_m3u8DL-RE", "N_m3u8DL-RE.exe");
-            _ffmpegPath = configuration["FFmpegPath"] ?? "ffmpeg";
+            _m3u8dlPath = Path.Combine(Directory.GetCurrentDirectory(), configuration["M3u8DLPath"]) ?? Path.Combine(Directory.GetCurrentDirectory(), "tools", "N_m3u8DL-RE", "N_m3u8DL-RE.exe");
+            _ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), configuration["FFmpegPath"]) ?? "ffmpeg";
         }
 
        
